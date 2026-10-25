@@ -9,6 +9,13 @@ from guardian.modules.container_monitor import (
 )
 
 
+@pytest.fixture(autouse=True)
+def host_cpu_count():
+    """Keep single-core scenarios independent of the test machine."""
+    with patch('multiprocessing.cpu_count', return_value=1) as cpu_count:
+        yield cpu_count
+
+
 @pytest.fixture
 def mock_config():
     return {
@@ -37,7 +44,7 @@ class TestContainerMonitor:
         """Test initialization with minimal config."""
         monitor = ContainerMonitor({})
         assert monitor.enabled is True
-        assert monitor.cpu_threshold == 100
+        assert monitor.cpu_threshold == 80
         assert monitor.kill_after_minutes == 15
 
     def test_init_with_config(self, monitor, mock_config):
@@ -160,6 +167,48 @@ class TestContainerMonitor:
         assert 'enabled' in status
         assert 'threshold' in status
         assert 'tracking' in status
+
+    @pytest.mark.parametrize('num_cpus', [1, 2, 8])
+    def test_threshold_uses_total_host_capacity(self, host_cpu_count, num_cpus):
+        host_cpu_count.return_value = num_cpus
+        monitor = ContainerMonitor({})
+        status = monitor.get_status()
+        assert status['num_cpus'] == num_cpus
+        assert status['configured_threshold_percent'] == 80
+        assert status['effective_threshold_docker_percent'] == 80 * num_cpus
+        assert status['threshold'] == 80 * num_cpus
+
+    @pytest.mark.parametrize('docker_cpu', [88.2, 150.0, 639.9, 640.0, 800.0])
+    def test_eight_core_host_detects_only_sustained_host_abuse(
+        self, host_cpu_count, docker_cpu, caplog
+    ):
+        """Replay the Periphery incident and retain the stop path for real abuse."""
+        host_cpu_count.return_value = 8
+        monitor = ContainerMonitor({})
+        sample = [{'id': 'abc123', 'name': 'komodo-periphery-1',
+                   'image': 'ghcr.io/moghtech/komodo-periphery:2.3.1',
+                   'cpu_percent': docker_cpu}]
+        with patch.object(monitor, '_get_container_stats', return_value=sample), \
+             patch.object(monitor, '_get_container_labels', return_value={}), \
+             patch('time.time', return_value=1000.0) as clock, \
+             caplog.at_level('INFO'):
+            assert monitor.check() == []
+            clock.return_value += 6 * 60
+            assert bool(monitor.get_warnings()) is (docker_cpu >= 640)
+            assert monitor.check() == []
+            clock.return_value = 1000.0 + 16 * 60
+            abusive = monitor.check()
+
+        if docker_cpu >= 640:
+            assert len(abusive) == 1
+            assert abusive[0].container_name == 'komodo-periphery-1'
+            assert '80% of 8 CPUs' in caplog.text
+            with patch('subprocess.run', return_value=Mock(returncode=0, stderr='')) as run:
+                assert monitor.stop_container(abusive[0].container_id) is True
+                assert run.call_args.args[0] == ['docker', 'stop', 'abc123']
+        else:
+            assert abusive == []
+            assert monitor._tracking['abc123'].first_high_cpu_time is None
 
 
 class TestContainerStats:

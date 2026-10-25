@@ -332,8 +332,10 @@ containers:
     # Habilitar monitoramento de containers
     enabled: true
 
-    # Threshold de CPU (porcentagem) para considerar abuso
-    # Containers que usam >= 100% CPU continuamente são suspeitos
+    # Porcentagem da capacidade TOTAL do host para considerar abuso.
+    # Docker mostra 100% por CPU lógica: em 8 CPUs, 80 aqui equivale a
+    # 640% no docker stats. Um container a 100% usa apenas 1 das 8 CPUs.
+    # O valor abaixo só considera abuso quando toda a capacidade é usada.
     cpu_threshold_percent: 100
 
     # Tempo (minutos) para enviar aviso via Telegram

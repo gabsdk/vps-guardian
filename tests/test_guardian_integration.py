@@ -492,7 +492,8 @@ type=PATH msg=audit(1706000000.123:456): item=0 name="/tmp/malware" key="guardia
         monitor = ContainerMonitor(mock_config)
 
         assert monitor.enabled is True
-        assert monitor.cpu_threshold == 100
+        assert monitor.cpu_threshold == 80 * monitor.num_cpus
+        assert monitor.get_status()['configured_threshold_percent'] == 80
         assert monitor.kill_after_minutes == 15
         assert monitor.check_interval == 60
 

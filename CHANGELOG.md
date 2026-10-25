@@ -4,6 +4,16 @@ Todas as mudanças notáveis do projeto serão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [Unreleased]
+
+### Corrigido
+- Monitor de containers: conclui a conversão do limite de CPU para a capacidade
+  total do host e inicializa o valor usado nos logs e no status. Em hosts com
+  8 CPUs, o limite configurado de 80% equivale a 640% no `docker stats`, evitando
+  a parada de serviços como Komodo Periphery usando apenas parte de um núcleo.
+- Testes determinísticos para 1, 2 e 8 CPUs, incluindo aviso e parada por abuso
+  sustentado no limite correto. Whitelists e detecção de ameaças são preservadas.
+
 ## [1.1.0] - 2026-03-19
 
 ### Adicionado

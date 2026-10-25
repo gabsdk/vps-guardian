@@ -130,6 +130,7 @@ containers:
 
   resource_monitoring:
     enabled: true
+    # Percentual da capacidade total do host (8 CPUs: 80 aqui = 640% no Docker).
     cpu_threshold_percent: 80
     kill_after_minutes: 15
     check_interval_seconds: 60

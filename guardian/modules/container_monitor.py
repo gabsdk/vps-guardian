@@ -50,8 +50,10 @@ class ContainerMonitor:
 
         import multiprocessing
         self.num_cpus = multiprocessing.cpu_count()
-        configured_threshold = resource_config.get('cpu_threshold_percent', 80)
-        self.cpu_threshold = (configured_threshold / 100.0) * self.num_cpus * 100
+        self.cpu_threshold_configured = resource_config.get('cpu_threshold_percent', 80)
+        # Docker reports 100% per logical CPU. Configuration is a percentage
+        # of the whole host: 80% on 8 CPUs corresponds to 640% in docker stats.
+        self.cpu_threshold = self.cpu_threshold_configured * self.num_cpus
 
         self.warn_after_minutes = resource_config.get('warn_after_minutes', 5)
         self.kill_after_minutes = resource_config.get('kill_after_minutes', 15)
@@ -305,6 +307,7 @@ class ContainerMonitor:
             'num_cpus': self.num_cpus,
             'configured_threshold_percent': self.cpu_threshold_configured,
             'effective_threshold_docker_percent': self.cpu_threshold,
+            'threshold': self.cpu_threshold,
             'warn_after_minutes': self.warn_after_minutes,
             'kill_after_minutes': self.kill_after_minutes,
             'tracking': {
